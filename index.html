@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+    <title>GPS Beacon</title>
+    <!-- PWA -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#44ff44">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Beacon">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{--g:#44ff44;--r:#ff4444;--o:#ff9944;--b:#4488ff;--y:#ffff44;--bg:#0a0a1e;--card:#111130;--bd:#222244}
+        body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:#fff;min-height:100vh;padding-bottom:40px}
+        .hdr{background:linear-gradient(135deg,#0d0d2e,#1a0a2e);padding:14px 18px;border-bottom:2px solid var(--bd);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+        .hdr-left{display:flex;align-items:center;gap:10px}
+        .hdr h1{font-size:1.05em;color:var(--g);letter-spacing:2px}
+        .hdr-badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+        .badge{padding:4px 10px;border-radius:20px;font-size:.7em;font-weight:bold}
+        .badge.ok{background:rgba(68,255,68,.15);border:1px solid var(--g);color:var(--g)}
+        .badge.wait{background:rgba(255,153,68,.15);border:1px solid var(--o);color:var(--o)}
+        .badge.err{background:rgba(255,68,68,.15);border:1px solid var(--r);color:var(--r)}
+        .cnt{max-width:500px;margin:0 auto;padding:16px 14px}
+
+        /* PWA install banner */
+        .install-banner{display:none;align-items:center;gap:10px;background:rgba(68,136,255,.08);border:1px solid var(--b);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+        .install-banner.show{display:flex}
+        .install-banner .ib-txt{flex:1;font-size:.78em;color:#aaa;line-height:1.5}
+        .install-banner .ib-txt b{color:var(--b);display:block;margin-bottom:2px}
+        .ib-btn{padding:8px 14px;background:var(--b);border:none;border-radius:8px;color:#fff;font-weight:bold;font-size:.75em;cursor:pointer;flex-shrink:0}
+        .ib-close{background:none;border:none;color:#444;font-size:1.1em;cursor:pointer;flex-shrink:0;padding:2px 6px}
+
+        /* Background status bar */
+        .bg-bar{display:none;align-items:center;gap:8px;background:rgba(68,255,68,.05);border:1px solid rgba(68,255,68,.2);border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:.7em;color:#555}
+        .bg-bar.show{display:flex}
+        .bg-dot{width:7px;height:7px;border-radius:50%;background:var(--g);flex-shrink:0;animation:pls 1.5s infinite}
+        .bg-bar span{flex:1}
+
+        .sos-btn{width:100%;padding:18px;background:linear-gradient(135deg,#8b0000,#ff0000);border:3px solid var(--r);border-radius:14px;color:#fff;font-size:1.1em;font-weight:bold;letter-spacing:3px;cursor:pointer;margin-bottom:14px;transition:all .2s;text-transform:uppercase;box-shadow:0 0 20px rgba(255,0,0,.3)}
+        .sos-btn:active{transform:scale(.97)}
+        .sos-btn.active{animation:sosPulse .8s infinite}
+        @keyframes sosPulse{0%,100%{box-shadow:0 0 20px rgba(255,0,0,.5)}50%{box-shadow:0 0 60px rgba(255,0,0,1)}}
+        .sos-cancel{width:100%;padding:10px;background:#1a1a3e;border:1px solid #444;border-radius:10px;color:#888;font-size:.8em;cursor:pointer;margin-bottom:14px;display:none}
+        .status-box{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--bd);border-left:4px solid var(--g);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+        .pdot{width:14px;height:14px;border-radius:50%;background:var(--g);flex-shrink:0;box-shadow:0 0 8px var(--g);animation:pls 1.5s infinite}
+        @keyframes pls{0%,100%{box-shadow:0 0 4px var(--g)}50%{box-shadow:0 0 16px var(--g)}}
+        .stxt .st{font-size:1em;font-weight:bold;color:var(--g)}
+        .stxt .ss{font-size:.75em;color:#777;margin-top:3px}
+        .rings-wrap{display:flex;justify-content:center;margin:8px 0 16px}
+        .rings{position:relative;width:100px;height:100px;display:flex;align-items:center;justify-content:center}
+        .ring{position:absolute;border-radius:50%;border:1px solid var(--g);opacity:0;animation:ro 3s ease-out infinite}
+        .ring:nth-child(2){animation-delay:.75s}.ring:nth-child(3){animation-delay:1.5s}.ring:nth-child(4){animation-delay:2.25s}
+        @keyframes ro{0%{width:34px;height:34px;opacity:.8}100%{width:130px;height:130px;opacity:0}}
+        .cdot{width:16px;height:16px;border-radius:50%;background:var(--g);box-shadow:0 0 12px var(--g);z-index:2}
+        .id-box{background:var(--card);border:1px dashed #333;border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+        .id-lbl{font-size:.64em;color:#555;letter-spacing:1px;margin-bottom:3px}
+        .id-val{font-family:monospace;font-size:.82em;color:var(--o);word-break:break-all}
+        .cpbtn{padding:6px 12px;background:#1a1a3e;border:1px solid #333;color:#777;border-radius:7px;cursor:pointer;font-size:.72em;flex-shrink:0}
+        .nick-row{display:flex;gap:8px;margin-bottom:14px}
+        .nick-input{flex:1;padding:10px 14px;background:var(--card);border:1px solid var(--bd);border-radius:10px;color:#fff;font-size:.88em;outline:none}
+        .nick-input:focus{border-color:var(--o)}
+        .nick-save{padding:10px 16px;background:var(--o);border:none;border-radius:10px;color:#000;font-weight:bold;cursor:pointer;font-size:.82em}
+        .src-wrap{text-align:center;margin-bottom:12px}
+        .src-tag{display:inline-block;padding:4px 12px;border-radius:8px;font-size:.7em;font-weight:bold;letter-spacing:1px}
+        .src-tag.gps{background:rgba(68,255,68,.12);border:1px solid var(--g);color:var(--g)}
+        .src-tag.wait{background:rgba(255,153,68,.12);border:1px solid var(--o);color:var(--o)}
+        .src-tag.err{background:rgba(255,68,68,.12);border:1px solid var(--r);color:var(--r)}
+        .motion-badge{display:inline-block;padding:3px 10px;border-radius:8px;font-size:.68em;font-weight:bold;margin-left:6px}
+        .motion-badge.stopped{background:rgba(136,136,136,.2);border:1px solid #888;color:#888}
+        .motion-badge.walking{background:rgba(68,255,68,.12);border:1px solid var(--g);color:var(--g)}
+        .motion-badge.running{background:rgba(68,136,255,.12);border:1px solid var(--b);color:var(--b)}
+        .motion-badge.driving{background:rgba(255,153,68,.12);border:1px solid var(--o);color:var(--o)}
+        .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+        .stat{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 6px;text-align:center}
+        .stat .n{font-size:1.1em;font-weight:bold;font-family:monospace;color:var(--g)}
+        .stat .l{font-size:.55em;color:#555;margin-top:3px;letter-spacing:1px}
+        .panel{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden;margin-bottom:14px}
+        .ptitle{background:#0d0d22;padding:9px 14px;font-size:.68em;color:#555;letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid var(--bd)}
+        .row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #0d0d20;gap:10px}
+        .row:last-child{border-bottom:none}
+        .rk{font-size:.78em;color:#666;flex-shrink:0}
+        .rv{font-size:.78em;text-align:right;font-family:monospace;word-break:break-all;max-width:65%}
+        .g{color:var(--g)}.r{color:var(--r)}.o{color:var(--o)}.b{color:var(--b)}.y{color:var(--y)}.w{color:#ddd}
+        .gg{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#0a0a1a}
+        .gc{background:var(--card);padding:12px 14px}
+        .gl{font-size:.64em;color:#555;text-transform:uppercase;letter-spacing:1px}
+        .gv{font-size:.86em;color:var(--o);font-family:monospace;margin-top:4px}
+        .abar{width:100%;height:4px;background:#1a1a3e;border-radius:2px;margin-top:6px;overflow:hidden}
+        .afill{height:100%;border-radius:2px;transition:all .5s}
+        .albl{font-size:.64em;color:#555;margin-top:3px}
+        .setup-box{background:rgba(255,153,68,.07);border:1px solid #ff9944;border-radius:12px;padding:14px 16px;margin-bottom:14px;display:none}
+        .setup-box.show{display:block}
+        .setup-box h3{color:var(--o);font-size:.85em;margin-bottom:10px;letter-spacing:1px}
+        .setup-box pre{background:#0a0a1a;border:1px solid #333;border-radius:8px;padding:10px;font-size:.68em;color:#aaa;overflow-x:auto;white-space:pre;line-height:1.6;margin:8px 0}
+        .setup-box p{font-size:.75em;color:#888;margin:6px 0;line-height:1.5}
+        .setup-box .step{color:var(--o);font-weight:bold}
+        .notice{border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.82em;display:none}
+        .notice.show{display:block}
+        .notice.info{background:rgba(68,136,255,.08);border:1px solid var(--b);color:var(--b)}
+        .notice.warning{background:rgba(255,153,68,.1);border:1px solid var(--o);color:var(--o)}
+        .notice.danger{background:rgba(255,68,68,.12);border:1px solid var(--r);color:var(--r)}
+        .err-box{background:rgba(255,68,68,.1);border:1px solid var(--r);border-left:4px solid var(--r);border-radius:10px;padding:12px 15px;margin-bottom:14px;display:none}
+        .err-box.show{display:block}
+        .err-box .et{color:var(--r);font-weight:bold;font-size:.88em;margin-bottom:4px}
+        .err-box .em{color:#ccc;font-size:.82em}
+        .err-box .ef{color:var(--o);font-size:.78em;margin-top:5px}
+        .log-wrap{background:#050510;border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+        .log-head{background:#0d0d20;padding:8px 14px;display:flex;justify-content:space-between;align-items:center}
+        .log-head span{font-size:.7em;color:#555;letter-spacing:2px}
+        .log-clr{font-size:.68em;color:#444;background:none;border:1px solid #2a2a3e;padding:2px 8px;border-radius:4px;cursor:pointer}
+        .log-body{height:220px;overflow-y:auto;padding:8px;font-family:monospace;font-size:.7em}
+        .ll{padding:2px 5px;margin-bottom:2px;display:flex;gap:8px}
+        .ll .lt{color:#333;flex-shrink:0}
+        .ll.ok .lm{color:var(--g)}.ll.err .lm{color:var(--r)}.ll.warn .lm{color:var(--o)}.ll.info .lm{color:var(--b)}
+        .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:#111130;border:1px solid var(--g);color:var(--g);padding:9px 20px;border-radius:20px;font-size:.82em;transition:transform .3s;z-index:999;pointer-events:none}
+        .toast.show{transform:translateX(-50%) translateY(0)}
+        ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+    </style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<!-- PWA Install Banner -->
+<div class="install-banner" id="installBanner">
+    <div class="ib-txt">
+        <b>📲 Install GPS Beacon</b>
+        Install for background tracking &amp; offline use on any device.
+    </div>
+    <button class="ib-btn" id="installBtn" onclick="triggerInstall()">Install</button>
+    <button class="ib-close" onclick="dismissInstall()">✕</button>
+</div>
+
+<div class="hdr">
+    <div class="hdr-left">
+        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="var(--g)" stroke-width="1.6">
+            <circle cx="13" cy="15" r="3"/><path d="M8 20 Q13 9 18 20"/><path d="M4 23 Q13 1 22 23"/><line x1="13" y1="18" x2="13" y2="25"/>
+        </svg>
+        <h1>BEACON TX</h1>
+    </div>
+    <div class="hdr-badges">
+        <span class="badge wait" id="fbBadge">FB</span>
+        <span class="badge wait" id="sbBadge">SB</span>
+        <span class="badge wait" id="swBadge">PWA</span>
+    </div>
+</div>
+
+<div class="cnt">
+    <!-- Background running indicator -->
+    <div class="bg-bar" id="bgBar">
+        <div class="bg-dot"></div>
+        <span id="bgBarTxt">Running in background — beacon active</span>
+    </div>
+
+    <div class="setup-box" id="setupBox">
+        <h3>SUPABASE SETUP REQUIRED</h3>
+        <p><span class="step">Step 1.</span> Go to Supabase Dashboard › SQL Editor › New query › paste this:</p>
+        <pre id="sqlText">create table if not exists beacons (
+  beacon_id  text primary key,
+  data       jsonb,
+  updated_at timestamptz default now()
+);
+create table if not exists history (
+  id         bigserial primary key,
+  beacon_id  text,
+  data       jsonb,
+  created_at timestamptz default now()
+);
+alter table beacons enable row level security;
+alter table history enable row level security;
+create policy "anon_all_beacons" on beacons
+  for all to anon using (true) with check (true);
+create policy "anon_all_history" on history
+  for all to anon using (true) with check (true);</pre>
+        <p><span class="step">Step 2.</span> Click Run, then reload this page.</p>
+        <button onclick="copySql()" style="margin-top:8px;padding:6px 14px;background:#1a1a3e;border:1px solid var(--o);color:var(--o);border-radius:7px;cursor:pointer;font-size:.75em">Copy SQL</button>
+        <button onclick="dismissSetup()" style="margin-top:8px;margin-left:8px;padding:6px 14px;background:#1a1a3e;border:1px solid #444;color:#666;border-radius:7px;cursor:pointer;font-size:.75em">Dismiss</button>
+    </div>
+
+    <div class="err-box" id="errBox">
+        <div class="et" id="errT"></div>
+        <div class="em" id="errM"></div>
+        <div class="ef" id="errF"></div>
+    </div>
+
+    <div class="notice info" id="gpsNotice">Acquiring GPS fix...</div>
+    <div class="notice warning" id="batWarn"></div>
+
+    <button class="sos-btn" id="sosBtn" onclick="sendSOS()">SOS EMERGENCY</button>
+    <button class="sos-cancel" id="sosCancel" onclick="cancelSOS()">Cancel Emergency</button>
+
+    <div class="status-box">
+        <div class="pdot"></div>
+        <div class="stxt">
+            <div class="st" id="mainSt">INITIALIZING</div>
+            <div class="ss" id="subSt">Starting...</div>
+        </div>
+    </div>
+
+    <div class="rings-wrap">
+        <div class="rings">
+            <div class="ring"></div><div class="ring"></div>
+            <div class="ring"></div><div class="ring"></div>
+            <div class="cdot"></div>
+        </div>
+    </div>
+
+    <div class="id-box">
+        <div>
+            <div class="id-lbl">BEACON ID</div>
+            <div class="id-val" id="bId">LOADING...</div>
+        </div>
+        <button class="cpbtn" onclick="copyId()">COPY</button>
+    </div>
+
+    <div class="nick-row">
+        <input class="nick-input" id="nickInput" placeholder="Device nickname" maxlength="30">
+        <button class="nick-save" onclick="saveNick()">Save</button>
+    </div>
+
+    <div class="src-wrap">
+        <span class="src-tag wait" id="srcTag">WAITING FOR GPS</span>
+        <span class="motion-badge stopped" id="motionBadge">STOPPED</span>
+    </div>
+
+    <div class="stats">
+        <div class="stat"><div class="n" id="sBc">0</div><div class="l">SENT</div></div>
+        <div class="stat"><div class="n" id="sUt">00:00</div><div class="l">UPTIME</div></div>
+        <div class="stat"><div class="n" id="sDist">0m</div><div class="l">DISTANCE</div></div>
+        <div class="stat"><div class="n" id="sEr">0</div><div class="l">ERRORS</div></div>
+    </div>
+
+    <div class="panel">
+        <div class="ptitle">GPS LOCATION</div>
+        <div class="gg">
+            <div class="gc"><div class="gl">Latitude</div><div class="gv" id="gLat">--</div></div>
+            <div class="gc"><div class="gl">Longitude</div><div class="gv" id="gLng">--</div></div>
+            <div class="gc">
+                <div class="gl">Accuracy</div>
+                <div class="gv" id="gAcc">--</div>
+                <div class="abar"><div class="afill" id="accFill"></div></div>
+                <div class="albl" id="accLbl"></div>
+            </div>
+            <div class="gc"><div class="gl">Altitude</div><div class="gv" id="gAlt">--</div></div>
+            <div class="gc"><div class="gl">Speed</div><div class="gv" id="gSpd">--</div></div>
+            <div class="gc"><div class="gl">Heading</div><div class="gv" id="gHdg">--</div></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="ptitle">ADDRESS</div>
+        <div class="row"><span class="rk">Country</span><span class="rv w" id="aCountry">--</span></div>
+        <div class="row"><span class="rk">Region / State</span><span class="rv w" id="aRegion">--</span></div>
+        <div class="row"><span class="rk">Province / County</span><span class="rv w" id="aProvince">--</span></div>
+        <div class="row"><span class="rk">City / Municipality</span><span class="rv w" id="aCity">--</span></div>
+        <div class="row"><span class="rk">Barangay / Suburb</span><span class="rv y" id="aBrgy">--</span></div>
+        <div class="row"><span class="rk">Road / Street</span><span class="rv w" id="aRoad">--</span></div>
+        <div class="row"><span class="rk">Postal Code</span><span class="rv w" id="aZip">--</span></div>
+        <div class="row"><span class="rk">Full Address</span><span class="rv w" id="aFull" style="font-size:.66em">--</span></div>
+    </div>
+
+    <div class="panel">
+        <div class="ptitle">MOVEMENT</div>
+        <div class="row"><span class="rk">Motion</span><span class="rv w" id="mvMotion">Stopped</span></div>
+        <div class="row"><span class="rk">Speed</span><span class="rv b" id="mvSpeed">0 km/h</span></div>
+        <div class="row"><span class="rk">Distance</span><span class="rv g" id="mvDist">0 m</span></div>
+        <div class="row"><span class="rk">Top Speed</span><span class="rv o" id="mvTop">0 km/h</span></div>
+    </div>
+
+    <div class="panel">
+        <div class="ptitle">DEVICE</div>
+        <div class="row"><span class="rk">Model</span><span class="rv w" id="dModel">--</span></div>
+        <div class="row"><span class="rk">OS / Browser</span><span class="rv w" id="dOS">--</span></div>
+        <div class="row"><span class="rk">Battery</span><span class="rv g" id="dBat">--</span></div>
+        <div class="row"><span class="rk">Network</span><span class="rv w" id="dConn">--</span></div>
+        <div class="row"><span class="rk">IP Address</span><span class="rv o" id="nIP">--</span></div>
+    </div>
+
+    <div class="panel">
+        <div class="ptitle">SYSTEM STATUS</div>
+        <div class="row"><span class="rk">Firebase</span><span class="rv" id="ssFB">Connecting...</span></div>
+        <div class="row"><span class="rk">Supabase</span><span class="rv" id="ssSB">Connecting...</span></div>
+        <div class="row"><span class="rk">Service Worker</span><span class="rv" id="ssSW">--</span></div>
+        <div class="row"><span class="rk">GPS Quality</span><span class="rv" id="ssGPS">--</span></div>
+        <div class="row"><span class="rk">Last Sent</span><span class="rv y" id="ssLS">--</span></div>
+        <div class="row"><span class="rk">Queued</span><span class="rv w" id="ssQ">0</span></div>
+    </div>
+
+    <div class="log-wrap">
+        <div class="log-head">
+            <span>LOG</span>
+            <button class="log-clr" onclick="clearLog()">CLEAR</button>
+        </div>
+        <div class="log-body" id="logBody"></div>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+    getDatabase, ref, set, push, onValue, onDisconnect,
+    serverTimestamp, query, orderByChild, limitToLast, get, remove
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+/* ─────────────── CONFIG ─────────────── */
+const FB_CFG = {
+    apiKey:"AIzaSyBcswUjG4K9X5zXqZnbneOGVXmlat551dQ",
+    authDomain:"gpsa-3ca6e.firebaseapp.com",
+    databaseURL:"https://gpsa-3ca6e-default-rtdb.firebaseio.com",
+    projectId:"gpsa-3ca6e",
+    storageBucket:"gpsa-3ca6e.firebasestorage.app",
+    messagingSenderId:"148370131593",
+    appId:"1:148370131593:web:1cde58f4a6d1ae94915458"
+};
+const SB_URL = "https://vtfrtrdcyijgspyqmnaw.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0ZnJ0cmRjeWlqZ3NweXFtbmF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMjExMTksImV4cCI6MjA5NTY5NzExOX0.hrHexRCLRJsUEi3D5N98mcakfiyw9W1kvuqBxEisXPs";
+
+const SEND_INTERVAL = 8000;
+const GEOCODE_INTERVAL = 25000;
+const MAX_Q = 80;
+const MAX_HIST = 400;
+
+/* ─────────────── STATE ─────────────── */
+let DB = null, beaconRef = null, histRef = null;
+let fbOk = false, sbOk = false, sbSetupShown = false;
+let sends = 0, errs = 0;
+const T0 = Date.now();
+let lastPos = null, prevLat = 0, prevLng = 0;
+let totalDist = 0, topSpeed = 0, motionState = 'stopped';
+let emergency = false;
+let ip = '', addr = {}, dev = {};
+let queue = [], online = navigator.onLine;
+let lastSend = 0, lastGeo = 0;
+let retryT = null, flushing = false;
+let fixCount = 0, bestAcc = Infinity, bestPos = null;
+let swReg = null;
+let deferredInstallPrompt = null;
+
+/* ─────────────── UTILS ─────────────── */
+const $ = id => document.getElementById(id);
+const wait = n => new Promise(r => setTimeout(r, n));
+
+function makeBID() {
+    let id = localStorage.getItem('bcn_id_v4');
+    if (!id) {
+        id = 'BCN-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+        localStorage.setItem('bcn_id_v4', id);
+    }
+    return id;
+}
+const BID = makeBID();
+
+function log(msg, type = 'ok') {
+    const b = $('logBody');
+    if (!b) return;
+    const d = document.createElement('div');
+    d.className = 'll ' + type;
+    d.innerHTML = `<span class="lt">${new Date().toLocaleTimeString()}</span><span class="lm">${msg}</span>`;
+    b.prepend(d);
+    while (b.children.length > 300) b.removeChild(b.lastChild);
+}
+window.clearLog = () => { $('logBody').innerHTML = ''; };
+
+let toastT = null;
+function toast(msg) {
+    const e = $('toast');
+    if (!e) return;
+    e.textContent = msg;
+    e.classList.add('show');
+    clearTimeout(toastT);
+    toastT = setTimeout(() => e.classList.remove('show'), 2500);
+}
+
+function showErr(t, m, f) {
+    $('errT').textContent = t;
+    $('errM').textContent = m;
+    $('errF').textContent = f ? 'FIX: ' + f : '';
+    $('errBox').classList.add('show');
+    errs++;
+    $('sEr').textContent = errs;
+}
+function hideErr() { $('errBox').classList.remove('show'); }
+
+window.copyId = async () => {
+    try {
+        await navigator.clipboard.writeText(BID);
+        toast('ID copied!');
+    } catch {
+        const t = document.createElement('textarea');
+        t.value = BID;
+        document.body.appendChild(t);
+        t.select();
+        try { document.execCommand('copy'); } catch {}
+        document.body.removeChild(t);
+        toast('ID copied!');
+    }
+};
+
+window.saveNick = () => {
+    const n = $('nickInput').value.trim();
+    if (!n) { toast('Enter a nickname'); return; }
+    localStorage.setItem('bcn_nick', n);
+    toast('Saved: ' + n);
+    log('Nick: ' + n, 'info');
+};
+
+window.copySql = async () => {
+    const sql = $('sqlText').textContent;
+    try { await navigator.clipboard.writeText(sql); toast('SQL copied!'); }
+    catch { toast('Copy the SQL manually'); }
+};
+window.dismissSetup = () => { $('setupBox').classList.remove('show'); };
+
+/* ─────────────── UPTIME TIMER ─────────────── */
+setInterval(() => {
+    const s = Math.floor((Date.now() - T0) / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sc = s % 60;
+    $('sUt').textContent = (h ? h + ':' : '') + String(m).padStart(2, '0') + ':' + String(sc).padStart(2, '0');
+}, 1000);
+
+/* ─────────────── QUEUE PERSISTENCE ─────────────── */
+function loadQ() {
+    try { queue = JSON.parse(localStorage.getItem('bcn_q') || '[]'); } catch { queue = []; }
+    $('ssQ').textContent = queue.length;
+}
+function saveQ() {
+    if (queue.length > MAX_Q) queue = queue.slice(-MAX_Q);
+    try { localStorage.setItem('bcn_q', JSON.stringify(queue)); } catch {}
+    $('ssQ').textContent = queue.length;
+}
+async function flushQ() {
+    if (!queue.length || !online || flushing) return;
+    flushing = true;
+    log('Flushing ' + queue.length + ' items...', 'info');
+    const batch = [...queue]; queue = []; saveQ();
+    const fail = [];
+    for (const p of batch) {
+        const ok = await sendBoth(p, true).catch(() => false);
+        if (!ok) fail.push(p);
+        await wait(300);
+    }
+    if (fail.length) {
+        queue = [...fail, ...queue]; saveQ();
+        log(fail.length + ' re-queued', 'warn');
+    } else {
+        log('Queue flushed', 'ok');
+    }
+    flushing = false;
+}
+
+/* ─────────────── MATHS ─────────────── */
+function haversine(la1, lo1, la2, lo2) {
+    const R = 6371000;
+    const dLa = (la2 - la1) * Math.PI / 180;
+    const dLo = (lo2 - lo1) * Math.PI / 180;
+    const a = Math.sin(dLa / 2) ** 2 + Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dLo / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function fmtDist(m) { return m < 1000 ? Math.round(m) + 'm' : (m / 1000).toFixed(2) + 'km'; }
+
+function setMotion(speed) {
+    const kmh = (speed != null && !isNaN(speed) && speed >= 0) ? speed * 3.6 : 0;
+    if (kmh > topSpeed) topSpeed = kmh;
+    let s = 'stopped', l = 'STOPPED', c = 'stopped';
+    if (kmh > 60)       { s = 'driving'; l = 'DRIVING'; c = 'driving'; }
+    else if (kmh > 8)   { s = 'running'; l = 'RUNNING'; c = 'running'; }
+    else if (kmh > 1.5) { s = 'walking'; l = 'WALKING'; c = 'walking'; }
+    motionState = s;
+    const b = $('motionBadge');
+    b.textContent = l; b.className = 'motion-badge ' + c;
+    $('mvMotion').textContent = l;
+    $('mvSpeed').textContent = kmh.toFixed(1) + ' km/h';
+    $('mvTop').textContent = topSpeed.toFixed(1) + ' km/h';
+}
+
+/* ─────────────── DEVICE DETECTION ─────────────── */
+function detectDevice() {
+    const ua = navigator.userAgent;
+    let br = 'Unknown', os = 'Unknown', model = 'Unknown';
+    if (/CriOS/i.test(ua))          br = 'Chrome iOS';
+    else if (/SamsungBrowser/i.test(ua)) br = 'Samsung';
+    else if (/Edg\//i.test(ua))     br = 'Edge';
+    else if (/Chrome/i.test(ua))    br = 'Chrome';
+    else if (/Firefox/i.test(ua))   br = 'Firefox';
+    else if (/Safari/i.test(ua))    br = 'Safari';
+    if (/iPhone/i.test(ua)) {
+        const v = ua.match(/iPhone OS ([\d_]+)/i);
+        os = 'iOS ' + (v ? v[1].replace(/_/g, '.') : ''); model = 'iPhone';
+    } else if (/iPad/i.test(ua)) {
+        os = 'iPadOS'; model = 'iPad';
+    } else if (/Android/i.test(ua)) {
+        const v = ua.match(/Android\s*([\d.]+)/i);
+        const dm = ua.match(/;\s*([^;)]+)\s*Build/i);
+        os = 'Android ' + (v ? v[1] : ''); model = dm ? dm[1].trim() : 'Android';
+    } else if (/Windows/i.test(ua)) { os = 'Windows'; model = 'Desktop'; }
+    else if (/Mac/i.test(ua))       { os = 'macOS';   model = 'Desktop'; }
+    else if (/Linux/i.test(ua))     { os = 'Linux';   model = 'Desktop'; }
+    const cn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    let net = 'Unknown';
+    if (cn) {
+        if (cn.type === 'wifi')          net = 'WiFi';
+        else if (cn.type === 'cellular') net = 'Cellular (' + (cn.effectiveType || '') + ')';
+        else if (cn.effectiveType)       net = cn.effectiveType.toUpperCase();
+        else if (cn.type)                net = cn.type;
+    }
+    dev = { model, os, browser: br, net };
+    $('dModel').textContent = model;
+    $('dOS').textContent = os + ' / ' + br;
+    $('dConn').textContent = net;
+    if (cn) cn.onchange = detectDevice;
+}
+
+async function detectBattery() {
+    try {
+        if (!navigator.getBattery) { $('dBat').textContent = 'N/A'; return; }
+        const b = await navigator.getBattery();
+        const upd = () => {
+            const p = Math.round(b.level * 100);
+            $('dBat').textContent = p + '%' + (b.charging ? ' [CHG]' : '');
+            $('dBat').className = 'rv ' + (p > 50 ? 'g' : p > 20 ? 'o' : 'r');
+            dev.battery = p + '%'; dev.batteryLevel = p; dev.charging = b.charging;
+            const w = $('batWarn');
+            if (!b.charging && p <= 10) { w.textContent = 'BATTERY CRITICAL: ' + p + '%'; w.className = 'notice danger show'; }
+            else if (!b.charging && p <= 20) { w.textContent = 'LOW BATTERY: ' + p + '%'; w.className = 'notice warning show'; }
+            else { w.className = 'notice warning'; }
+        };
+        upd(); b.onlevelchange = upd; b.onchargingchange = upd;
+    } catch { $('dBat').textContent = 'N/A'; }
+}
+
+async function fetchIP() {
+    const urls = ['https://api.ipify.org?format=json', 'https://api4.my-ip.io/v2/ip.json'];
+    for (const u of urls) {
+        try {
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 5000);
+            const r = await fetch(u, { signal: ctrl.signal });
+            clearTimeout(tid);
+            const d = await r.json();
+            ip = d.ip || d.origin || '';
+            if (ip) { $('nIP').textContent = ip; return; }
+        } catch {}
+    }
+    $('nIP').textContent = 'N/A';
+}
+
+/* ─────────────── GEOCODING ─────────────── */
+function parseAddress(data) {
+    const a = data.address || {};
+    const country  = a.country || '';
+    const region   = a.state || a.region || a.state_district || '';
+    const province = a.county || a.province || a.department || '';
+    const city     = a.city || a.town || a.municipality || a.city_district || a.village || '';
+    const barangay = a.quarter || a.suburb || a.neighbourhood || a.village_district || a.borough || a.district || a.ward || '';
+    const road     = a.road || a.pedestrian || a.footway || a.street || a.path || '';
+    const postcode = a.postcode || a.postal_code || '';
+    const full     = data.display_name || '';
+    return { country, region, province, city, barangay, road, postcode, full };
+}
+
+async function geocode(lat, lng) {
+    if (Date.now() - lastGeo < GEOCODE_INTERVAL) return;
+    lastGeo = Date.now();
+    try {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 10000);
+        const r = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18&accept-language=en`,
+            { headers: { 'User-Agent': 'GPSBeacon/4' }, signal: ctrl.signal }
+        );
+        clearTimeout(tid);
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.error) return;
+        addr = parseAddress(d);
+        $('aCountry').textContent  = addr.country   || '--';
+        $('aRegion').textContent   = addr.region    || '--';
+        $('aProvince').textContent = addr.province  || '--';
+        $('aCity').textContent     = addr.city      || '--';
+        $('aBrgy').textContent     = addr.barangay  || '--';
+        $('aRoad').textContent     = addr.road      || '--';
+        $('aZip').textContent      = addr.postcode  || '--';
+        $('aFull').textContent     = addr.full      || '--';
+        log('Geocoded: ' + (addr.city || addr.barangay || '?') + ', ' + addr.country, 'info');
+    } catch(e) {
+        if (e.name !== 'AbortError') log('Geocode: ' + e.message, 'warn');
+    }
+}
+
+/* ─────────────── PAYLOAD ─────────────── */
+function mkPayload(pos) {
+    const c = pos.coords;
+    const sp = (c.speed != null && !isNaN(c.speed) && c.speed >= 0) ? c.speed : null;
+    return {
+        beaconId: BID,
+        beaconName: localStorage.getItem('bcn_nick') || BID,
+        status: 'online',
+        broadcastNum: sends,
+        emergency,
+        gps: {
+            lat: c.latitude, lng: c.longitude,
+            accuracy: c.accuracy != null ? +c.accuracy.toFixed(1) : null,
+            altitude: c.altitude != null ? +c.altitude.toFixed(1) : null,
+            speed: sp != null ? +sp.toFixed(2) : null,
+            heading: c.heading != null ? +c.heading.toFixed(1) : null
+        },
+        location: {
+            country:  addr.country  || null,
+            region:   addr.region   || null,
+            province: addr.province || null,
+            city:     addr.city     || null,
+            barangay: addr.barangay || null,
+            road:     addr.road     || null,
+            postcode: addr.postcode || null,
+            full:     addr.full     || null
+        },
+        network: { ip: ip || null },
+        device: {
+            model: dev.model || null, os: dev.os || null, browser: dev.browser || null,
+            battery: dev.battery || null, batteryLevel: dev.batteryLevel || null,
+            charging: dev.charging || false, net: dev.net || null
+        },
+        movement: {
+            state: motionState,
+            speedKmh: sp != null ? +(sp * 3.6).toFixed(1) : 0,
+            topSpeed: +topSpeed.toFixed(1),
+            totalDist: Math.round(totalDist)
+        },
+        deviceTime: new Date().toISOString(),
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone
+    };
+}
+
+/* ─────────────── FIREBASE ─────────────── */
+async function toFirebase(payload, histOnly = false) {
+    if (!DB || !beaconRef || !histRef) return false;
+    try {
+        const jobs = [push(histRef, { ...payload, _st: serverTimestamp() })];
+        if (!histOnly) jobs.unshift(set(beaconRef, { ...payload, _st: serverTimestamp() }));
+        await Promise.all(jobs);
+        return true;
+    } catch(e) { log('FB: ' + e.message, 'err'); return false; }
+}
+
+/* ─────────────── SUPABASE ─────────────── */
+const SB_HDR = {
+    'Content-Type': 'application/json',
+    'apikey': SB_KEY,
+    'Authorization': 'Bearer ' + SB_KEY,
+    'Prefer': 'return=minimal'
+};
+
+async function sbFetch(path, opts, timeout = 12000) {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), timeout);
+    try {
+        const r = await fetch(SB_URL + path, { ...opts, signal: ctrl.signal });
+        clearTimeout(tid); return r;
+    } catch(e) { clearTimeout(tid); throw e; }
+}
+
+async function toSupabase(payload, histOnly = false) {
+    try {
+        if (!histOnly) {
+            const r = await sbFetch('/rest/v1/beacons', {
+                method: 'POST',
+                headers: { ...SB_HDR, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+                body: JSON.stringify({ beacon_id: BID, data: payload, updated_at: payload.deviceTime })
+            });
+            if (!r.ok) {
+                const body = await r.text().catch(() => '');
+                console.error('[SB beacons]', r.status, body);
+                if (r.status === 401 || r.status === 403) showSetup();
+                throw new Error('beacons ' + r.status);
+            }
+        }
+        const rh = await sbFetch('/rest/v1/history', {
+            method: 'POST',
+            headers: SB_HDR,
+            body: JSON.stringify({ beacon_id: BID, data: payload, created_at: payload.deviceTime })
+        });
+        if (!rh.ok) {
+            const body = await rh.text().catch(() => '');
+            console.error('[SB history]', rh.status, body);
+            if (rh.status === 401 || rh.status === 403) showSetup();
+            throw new Error('history ' + rh.status);
+        }
+        if (!sbOk) {
+            sbOk = true;
+            $('sbBadge').className = 'badge ok';
+            $('ssSB').textContent = 'Connected'; $('ssSB').className = 'rv g';
+            $('setupBox').classList.remove('show');
+            log('Supabase connected', 'ok');
+        }
+        return true;
+    } catch(e) {
+        sbOk = false;
+        $('sbBadge').className = 'badge err';
+        $('ssSB').textContent = 'Error'; $('ssSB').className = 'rv r';
+        if (sends <= 2 || sends % 15 === 0) log('SB: ' + e.message, 'err');
+        return false;
+    }
+}
+
+function showSetup() {
+    if (sbSetupShown) return; sbSetupShown = true;
+    $('setupBox').classList.add('show');
+    log('Supabase 401 -- tables or RLS not set up. See setup guide above.', 'err');
+}
+
+async function sendBoth(payload, histOnly = false) {
+    const [a, b] = await Promise.allSettled([
+        toFirebase(payload, histOnly),
+        toSupabase(payload, histOnly)
+    ]);
+    return a.value === true || b.value === true;
+}
+
+/* ─────────────── BROADCAST ─────────────── */
+async function broadcast(pos, force = false) {
+    const now = Date.now();
+    if (!force && now - lastSend < SEND_INTERVAL) return;
+    lastSend = now; sends++;
+    const p = mkPayload(pos);
+    if (!online) { queue.push(p); saveQ(); log('Offline -- queued #' + sends, 'warn'); return; }
+    const ok = await sendBoth(p).catch(() => false);
+    if (ok) {
+        $('sBc').textContent = sends;
+        $('ssLS').textContent = new Date().toLocaleTimeString();
+        if (sends <= 5 || sends % 20 === 0) log('Sent #' + sends, 'ok');
+        if (sends % 50 === 0) trimHist().catch(() => {});
+        /* trigger background sync registration */
+        if (swReg && 'sync' in swReg) {
+            swReg.sync.register('beacon-sync').catch(() => {});
+        }
+    } else {
+        queue.push(p); saveQ(); errs++; $('sEr').textContent = errs;
+        if (errs <= 5 || errs % 15 === 0) log('Send #' + sends + ' failed -- queued', 'err');
+    }
+}
+
+async function trimHist() {
+    if (!DB || !histRef) return;
+    try {
+        const sn = await get(query(histRef, orderByChild('deviceTime'), limitToLast(MAX_HIST + 50)));
+        if (!sn.exists()) return;
+        const keys = []; sn.forEach(c => keys.push(c.key));
+        if (keys.length > MAX_HIST) {
+            const del = keys.slice(0, keys.length - MAX_HIST);
+            await Promise.all(del.map(k => remove(ref(DB, 'history/' + BID + '/' + k))));
+            log('Trimmed ' + del.length + ' entries', 'info');
+        }
+    } catch(e) { log('Trim: ' + e.message, 'warn'); }
+}
+
+/* ─────────────── GPS ─────────────── */
+function startGPS() {
+    if (!navigator.geolocation) {
+        showErr('GPS not supported', 'No geolocation API', 'Use Chrome/Safari on mobile');
+        $('srcTag').textContent = 'NOT SUPPORTED'; $('srcTag').className = 'src-tag err';
+        return;
+    }
+    log('Starting GPS (high accuracy)...', 'info');
+    $('mainSt').textContent = 'ACQUIRING GPS'; $('subSt').textContent = 'Waiting for fix...';
+    showGpsNotice('Acquiring GPS fix...');
+    const OPT = { enableHighAccuracy: true, timeout: 60000, maximumAge: 0 };
+    navigator.geolocation.watchPosition(onFix, onGpsErr, OPT);
+    navigator.geolocation.getCurrentPosition(onFix, () => {}, OPT);
+}
+
+function onFix(pos) {
+    if (retryT) { clearTimeout(retryT); retryT = null; }
+    hideErr();
+    fixCount++;
+    const acc = pos.coords.accuracy;
+    if (acc < bestAcc) { bestAcc = acc; bestPos = pos; }
+    updateAccUI(acc);
+    if (fixCount <= 6) {
+        showGpsNotice('Improving accuracy... fix ' + fixCount + ' (' + acc.toFixed(0) + 'm)');
+    } else { hideGpsNotice(); }
+    const usedPos = (bestPos && bestPos.coords.accuracy <= acc) ? bestPos : pos;
+    applyGPS(usedPos);
+}
+
+function applyGPS(pos) {
+    lastPos = pos;
+    const c = pos.coords;
+    $('srcTag').textContent = 'GPS ACTIVE'; $('srcTag').className = 'src-tag gps';
+    $('mainSt').textContent = emergency ? 'EMERGENCY' : 'BROADCASTING';
+    $('mainSt').style.color = emergency ? '#ff4444' : '#44ff44';
+    $('subSt').textContent = c.latitude.toFixed(5) + ', ' + c.longitude.toFixed(5);
+    if (prevLat !== 0 && prevLng !== 0) {
+        const d = haversine(prevLat, prevLng, c.latitude, c.longitude);
+        if (d > (c.accuracy || 10) && d < 8000) totalDist += d;
+    }
+    prevLat = c.latitude; prevLng = c.longitude;
+    $('sDist').textContent = fmtDist(totalDist);
+    $('mvDist').textContent = fmtDist(totalDist);
+    setMotion(c.speed);
+    $('gLat').textContent = c.latitude.toFixed(7);
+    $('gLng').textContent = c.longitude.toFixed(7);
+    $('gAlt').textContent = c.altitude != null ? c.altitude.toFixed(1) + 'm' : '--';
+    $('gSpd').textContent = (c.speed != null && !isNaN(c.speed) && c.speed >= 0) ? (c.speed * 3.6).toFixed(1) + ' km/h' : '--';
+    $('gHdg').textContent = (c.heading != null && !isNaN(c.heading)) ? c.heading.toFixed(0) + ' deg' : '--';
+    if (fixCount === 1 || fixCount % 8 === 0) geocode(c.latitude, c.longitude);
+    broadcast(pos);
+}
+
+function updateAccUI(acc) {
+    let pct = 10, col = '#ff4444', lbl = 'Very Poor';
+    if (acc <= 5)        { pct = 100; col = '#44ff44'; lbl = 'Excellent'; }
+    else if (acc <= 15)  { pct = 85;  col = '#44ff44'; lbl = 'Very Good'; }
+    else if (acc <= 30)  { pct = 70;  col = '#88ff44'; lbl = 'Good'; }
+    else if (acc <= 60)  { pct = 50;  col = '#ffff44'; lbl = 'Fair'; }
+    else if (acc <= 100) { pct = 30;  col = '#ff9944'; lbl = 'Poor'; }
+    $('gAcc').textContent = '+/-' + acc.toFixed(1) + 'm';
+    $('accFill').style.cssText = 'width:' + pct + '%;background:' + col;
+    $('accLbl').textContent = lbl + ' (' + acc.toFixed(0) + 'm)';
+    $('ssGPS').textContent = lbl + ' +/-' + acc.toFixed(0) + 'm';
+    $('ssGPS').className = 'rv ' + (acc <= 30 ? 'g' : acc <= 70 ? 'o' : 'r');
+}
+
+function showGpsNotice(msg) { const n = $('gpsNotice'); n.textContent = msg; n.classList.add('show'); }
+function hideGpsNotice()    { $('gpsNotice').classList.remove('show'); }
+
+function onGpsErr(e) {
+    const M = {
+        1: { t: 'Permission Denied', m: 'Location access blocked', f: 'Settings > Site permissions > Location > Allow' },
+        2: { t: 'Position Unavailable', m: 'GPS signal unavailable', f: 'Move to open area' },
+        3: { t: 'GPS Timeout', m: 'Could not get location', f: 'Ensure GPS is on' }
+    };
+    const i = M[e.code] || { t: 'GPS Error', m: e.message || 'Unknown', f: 'Reload' };
+    showErr(i.t, i.m, i.f);
+    log('GPS [' + e.code + ']: ' + i.m, 'err');
+    $('srcTag').textContent = 'GPS ERROR'; $('srcTag').className = 'src-tag err';
+    $('mainSt').textContent = 'GPS ERROR'; $('mainSt').style.color = '#ff4444';
+    $('subSt').textContent = i.m; hideGpsNotice();
+    if (e.code === 1) return;
+    if (!retryT) retryT = setTimeout(() => {
+        log('Retrying GPS...', 'info');
+        fixCount = 0; bestAcc = Infinity; bestPos = null;
+        showGpsNotice('Retrying GPS...');
+        navigator.geolocation.getCurrentPosition(
+            p => { log('GPS OK', 'ok'); onFix(p); },
+            onGpsErr,
+            { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
+        );
+    }, 10000);
+}
+
+/* ─────────────── SOS ─────────────── */
+window.sendSOS = async () => {
+    emergency = true;
+    $('sosBtn').classList.add('active'); $('sosBtn').textContent = 'SOS ACTIVE';
+    $('sosCancel').style.display = 'block';
+    $('mainSt').textContent = 'EMERGENCY'; $('mainSt').style.color = '#ff4444';
+    log('SOS ACTIVATED', 'err'); toast('EMERGENCY ALERT SENT');
+    const now = new Date().toISOString();
+    if (DB) {
+        try {
+            await Promise.all([
+                set(ref(DB, 'beacons/' + BID + '/emergency'), true),
+                set(ref(DB, 'beacons/' + BID + '/emergencyTime'), now)
+            ]);
+        } catch(e) { log('FB SOS: ' + e.message, 'err'); }
+    }
+    try {
+        await sbFetch('/rest/v1/beacons', {
+            method: 'POST',
+            headers: { ...SB_HDR, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({ beacon_id: BID, data: { emergency: true, emergencyTime: now }, updated_at: now })
+        });
+    } catch(e) { log('SB SOS: ' + e.message, 'err'); }
+    if (lastPos) await broadcast(lastPos, true);
+};
+
+window.cancelSOS = async () => {
+    emergency = false;
+    $('sosBtn').classList.remove('active'); $('sosBtn').textContent = 'SOS EMERGENCY';
+    $('sosCancel').style.display = 'none'; $('mainSt').style.color = '#44ff44';
+    log('SOS cancelled', 'info'); toast('Emergency cancelled');
+    if (DB) try { await set(ref(DB, 'beacons/' + BID + '/emergency'), false); } catch {}
+    if (lastPos) broadcast(lastPos, true);
+};
+
+/* ─────────────── FIREBASE INIT ─────────────── */
+function initFirebase() {
+    try {
+        const app = initializeApp(FB_CFG);
+        DB = getDatabase(app);
+        beaconRef = ref(DB, 'beacons/' + BID);
+        histRef = ref(DB, 'history/' + BID);
+        onValue(ref(DB, '.info/connected'), sn => {
+            const ok = sn.val() === true; fbOk = ok;
+            $('fbBadge').className = 'badge ' + (ok ? 'ok' : 'err');
+            $('ssFB').textContent = ok ? 'Connected' : 'Disconnected';
+            $('ssFB').className = 'rv ' + (ok ? 'g' : 'r');
+            if (ok) {
+                log('Firebase connected', 'ok');
+                onDisconnect(beaconRef).update({ status: 'offline', lastSeen: new Date().toISOString() }).catch(() => {});
+                flushQ();
+            } else { log('Firebase disconnected', 'warn'); }
+        });
+        return true;
+    } catch(e) {
+        log('Firebase: ' + e.message, 'err');
+        $('fbBadge').className = 'badge err';
+        $('ssFB').textContent = 'Failed'; $('ssFB').className = 'rv r';
+        return false;
+    }
+}
+
+/* ─────────────── SUPABASE PING ─────────────── */
+async function pingSB() {
+    try {
+        const r = await sbFetch('/rest/v1/beacons?limit=1', {
+            method: 'GET',
+            headers: { apikey: SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+        }, 8000);
+        if (r.ok || r.status === 406) {
+            $('sbBadge').className = 'badge ok';
+            $('ssSB').textContent = 'Ready'; $('ssSB').className = 'rv g';
+            log('Supabase tables OK', 'ok');
+        } else if (r.status === 401 || r.status === 403) {
+            showSetup();
+            $('sbBadge').className = 'badge err';
+            $('ssSB').textContent = 'RLS Error'; $('ssSB').className = 'rv r';
+        } else if (r.status === 404) {
+            showSetup();
+            $('sbBadge').className = 'badge err';
+            $('ssSB').textContent = 'No tables'; $('ssSB').className = 'rv r';
+            log('Supabase: tables missing -- run SQL setup', 'err');
+        }
+    } catch(e) {
+        $('sbBadge').className = 'badge err';
+        $('ssSB').textContent = 'Unreachable'; $('ssSB').className = 'rv r';
+        log('SB ping: ' + e.message, 'warn');
+    }
+}
+
+/* ═══════════════════════════════════════════════════
+   PWA — SERVICE WORKER + INSTALL PROMPT
+   ═══════════════════════════════════════════════════ */
+
+/* ── Register service worker ── */
+async function initSW() {
+    if (!('serviceWorker' in navigator)) {
+        $('swBadge').className = 'badge err';
+        $('ssSW').textContent = 'Not supported'; $('ssSW').className = 'rv r';
+        return;
+    }
+    try {
+        swReg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
+        swReg.addEventListener('updatefound', () => {
+            const nw = swReg.installing;
+            nw.addEventListener('statechange', () => {
+                if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                    toast('Update ready — reload to apply');
+                }
+            });
+        });
+        $('swBadge').className = 'badge ok';
+        $('ssSW').textContent = 'Active'; $('ssSW').className = 'rv g';
+        log('Service Worker registered', 'ok');
+
+        /* Register periodic background sync if supported */
+        if ('periodicSync' in swReg) {
+            const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+            if (status.state === 'granted') {
+                await swReg.periodicSync.register('beacon-periodic', { minInterval: 15 * 60 * 1000 });
+                log('Periodic background sync registered', 'ok');
+            }
+        }
+
+        /* Listen for SW messages */
+        navigator.serviceWorker.addEventListener('message', e => {
+            if (e.data && (e.data.type === 'SYNC_TRIGGERED' || e.data.type === 'PERIODIC_SYNC')) {
+                log('SW sync trigger received', 'info');
+                if (lastPos && online) broadcast(lastPos, true);
+                if (online) flushQ();
+            }
+        });
+
+    } catch(e) {
+        $('swBadge').className = 'badge err';
+        $('ssSW').textContent = 'Error'; $('ssSW').className = 'rv r';
+        log('SW error: ' + e.message, 'warn');
+    }
+}
+
+/* ── Keep-alive ping to SW every 20 s (prevents suspension on some browsers) ── */
+function startKeepAlive() {
+    setInterval(() => {
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage('KEEP_ALIVE');
+        }
+        /* Also re-trigger GPS broadcast so the page doesn't go fully idle */
+        if (lastPos && online) broadcast(lastPos);
+    }, 20000);
+}
+
+/* ── Wake Lock (Android Chrome / desktop) — keeps screen & GPS active ── */
+let wakeLock = null;
+async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        log('Wake lock acquired (screen stays on)', 'ok');
+        wakeLock.addEventListener('release', () => {
+            log('Wake lock released', 'warn');
+            /* Re-acquire on visibility change */
+        });
+    } catch(e) { log('Wake lock: ' + e.message, 'warn'); }
+}
+document.addEventListener('visibilitychange', async () => {
+    if (document.hidden) return;
+    /* Reacquire wake lock when tab becomes visible again */
+    if (wakeLock === null || wakeLock.released) await requestWakeLock();
+    detectDevice();
+    if (lastPos) broadcast(lastPos, true);
+    if (online) flushQ();
+    /* Update background bar */
+    $('bgBar').classList.remove('show');
+});
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        $('bgBar').classList.add('show');
+        $('bgBarTxt').textContent = 'Running in background — beacon active';
+    }
+});
+
+/* ── PWA Install Prompt ── */
+window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    /* Show banner if not already installed */
+    if (!window.matchMedia('(display-mode: standalone)').matches) {
+        $('installBanner').classList.add('show');
+    }
+    log('PWA install prompt available', 'info');
+});
+
+window.addEventListener('appinstalled', () => {
+    $('installBanner').classList.remove('show');
+    deferredInstallPrompt = null;
+    toast('Beacon installed!');
+    log('App installed to home screen', 'ok');
+});
+
+window.triggerInstall = async () => {
+    if (!deferredInstallPrompt) {
+        /* iOS Safari — show manual instructions */
+        toast('Tap Share → "Add to Home Screen"');
+        return;
+    }
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    log('Install prompt: ' + outcome, 'info');
+    deferredInstallPrompt = null;
+    $('installBanner').classList.remove('show');
+};
+
+window.dismissInstall = () => {
+    $('installBanner').classList.remove('show');
+    localStorage.setItem('bcn_install_dismissed', '1');
+};
+
+/* Hide install banner if already running standalone (installed) */
+if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+    localStorage.setItem('bcn_installed', '1');
+    log('Running as installed PWA', 'ok');
+}
+
+/* ─────────────── NETWORK EVENTS ─────────────── */
+window.addEventListener('online', () => {
+    online = true; log('Online', 'ok'); toast('Back online');
+    setTimeout(flushQ, 500);
+    if (lastPos) broadcast(lastPos, true);
+});
+window.addEventListener('offline', () => {
+    online = false; log('Offline', 'warn'); toast('Offline — queuing');
+});
+
+/* ─────────────── PERIODIC FALLBACK SENDS ─────────────── */
+setInterval(() => { if (lastPos && online) broadcast(lastPos); }, 30000);
+setInterval(() => { if (online && queue.length) flushQ(); }, 60000);
+
+/* ─────────────── ERROR HANDLERS ─────────────── */
+window.onerror = (m) => { log('JS: ' + (m || 'error'), 'err'); return false; };
+window.onunhandledrejection = e => { log('Async: ' + (e.reason?.message || String(e.reason)), 'err'); };
+
+/* ─────────────── BOOT ─────────────── */
+window.addEventListener('load', async () => {
+    $('bId').textContent = BID;
+    const nick = localStorage.getItem('bcn_nick');
+    if (nick) $('nickInput').value = nick;
+    /* Hide install banner if user dismissed it before */
+    if (localStorage.getItem('bcn_install_dismissed')) {
+        $('installBanner').classList.remove('show');
+    }
+    log('GPS BEACON v4.0 PWA', 'ok');
+    log('ID: ' + BID, 'info');
+    loadQ(); detectDevice(); detectBattery();
+    await initSW();
+    initFirebase();
+    await pingSB();
+    fetchIP();
+    await requestWakeLock();
+    startKeepAlive();
+    await wait(400);
+    startGPS();
+});
+
+/* ─────────────── CLEANUP ON UNLOAD ─────────────── */
+window.addEventListener('beforeunload', () => {
+    saveQ();
+    try {
+        navigator.sendBeacon(
+            FB_CFG.databaseURL + '/beacons/' + BID + '/status.json',
+            JSON.stringify('offline')
+        );
+    } catch {}
+});
+</script>
+</body>
+</html>
